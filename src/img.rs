@@ -24,9 +24,6 @@ fn transform(
     for i in 0..width {
         for j in 0..height {
             let pixel = image[i][j];
-            // if i == 100 {
-            //     println!("I 100");
-            // }
             let x0 = i as f64 * transformation[0][0]
                 + j as f64 * transformation[1][0]
                 + transformation[2][0];
