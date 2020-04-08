@@ -1,3 +1,5 @@
+extern crate image;
+
 use image::*;
 
 // Tipo que representa uma matriz de pixels RGB
@@ -106,3 +108,17 @@ pub fn flip(img: &image::RgbImage, canvas: &mut PixelMatrix, direction: Directio
     let image_matrix = image_to_pixel_matrix(img);
     transform(&transform_matrix, &image_matrix, canvas, offset);
 }
+
+pub fn grayscale(img: &image::RgbImage, canvas: &mut PixelMatrix) {
+    let (width, height) = img.dimensions();
+    for i in 0..width {
+        for j in 0..height {
+            let pixel = img.get_pixel(i, j);
+            let image::Rgb(rgb) = *pixel;
+            let media: u8 = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
+            let new_pixel = image::Rgb([media, media, media]);
+            canvas[i as usize][j as usize] = new_pixel;
+        }
+    }
+}
+
