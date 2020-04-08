@@ -165,3 +165,18 @@ pub fn brightness(img: &image::RgbImage, canvas: &mut PixelMatrix, value: i32) {
     }
 }
 
+pub fn negative(img: &image::RgbImage, canvas: &mut PixelMatrix) {
+    let (width, height) = img.dimensions();
+    for i in 0..width {
+        for j in 0..height {
+            let pixel = img.get_pixel(i, j);
+            let image::Rgb(rgb) = *pixel;
+            let mut new_rgb = [rgb[0], rgb[1], rgb[2]];
+            for k in 0..3 {
+                new_rgb[k] = 255 - new_rgb[k];
+            }
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[i as usize][j as usize] = new_pixel;
+        }
+    }
+}
