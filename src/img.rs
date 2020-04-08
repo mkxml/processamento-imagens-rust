@@ -122,3 +122,46 @@ pub fn grayscale(img: &image::RgbImage, canvas: &mut PixelMatrix) {
     }
 }
 
+fn transform_light(contrast: i32, subpixel: u8, brightness: i32) -> u8 {
+    let mut out = contrast as i32 * subpixel as i32 + brightness as i32;
+    if out > 255 {
+        out = 255;
+    }
+    if out < 0 {
+        out = 0;
+    }
+    out as u8
+}
+
+pub fn contrast(img: &image::RgbImage, canvas: &mut PixelMatrix, value: i32) {
+    let (width, height) = img.dimensions();
+    for i in 0..width {
+        for j in 0..height {
+            let pixel = img.get_pixel(i, j);
+            let image::Rgb(rgb) = *pixel;
+            let mut new_rgb = [rgb[0], rgb[1], rgb[2]];
+            for k in 0..3 {
+                new_rgb[k] = transform_light(value, new_rgb[k], 0);
+            }
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[i as usize][j as usize] = new_pixel;
+        }
+    }
+}
+
+pub fn brightness(img: &image::RgbImage, canvas: &mut PixelMatrix, value: i32) {
+    let (width, height) = img.dimensions();
+    for i in 0..width {
+        for j in 0..height {
+            let pixel = img.get_pixel(i, j);
+            let image::Rgb(rgb) = *pixel;
+            let mut new_rgb = [rgb[0], rgb[1], rgb[2]];
+            for k in 0..3 {
+                new_rgb[k] = transform_light(1, new_rgb[k], value);
+            }
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[i as usize][j as usize] = new_pixel;
+        }
+    }
+}
+
