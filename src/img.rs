@@ -217,3 +217,15 @@ fn apply_filter_mask(
     [(r_sum / z) as u8, (g_sum / z) as u8, (b_sum / z) as u8]
 }
 
+pub fn average_filter(img: &image::RgbImage, canvas: &mut PixelMatrix) {
+    let filter: FilterMatrix = [[1, 1, 1], [1, 1, 1], [1, 1, 1]];
+    let (width, height) = img.dimensions();
+    let z = sum_filter_matrix(filter);
+    for x in 1..(width - 1) {
+        for y in 1..(height - 1) {
+            let new_rgb = apply_filter_mask(img, filter, x, y, z);
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[x as usize][y as usize] = new_pixel;
+        }
+    }
+}
