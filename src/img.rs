@@ -1,6 +1,7 @@
 extern crate image;
 
 use image::*;
+use std::collections::HashMap;
 
 // Tipo que representa uma matriz de pixels RGB
 pub type PixelMatrix = Vec<Vec<Rgb<u8>>>;
@@ -111,7 +112,7 @@ pub fn flip(img: &image::RgbImage, canvas: &mut PixelMatrix, direction: Directio
     transform(&transform_matrix, &image_matrix, canvas, offset);
 }
 
-pub fn grayscale(img: &image::RgbImage, canvas: &mut PixelMatrix) {
+pub fn grayscale(img: &mut image::RgbImage) {
     let (width, height) = img.dimensions();
     for i in 0..width {
         for j in 0..height {
@@ -119,23 +120,24 @@ pub fn grayscale(img: &image::RgbImage, canvas: &mut PixelMatrix) {
             let image::Rgb(rgb) = *pixel;
             let media: u8 = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
             let new_pixel = image::Rgb([media, media, media]);
-            canvas[i as usize][j as usize] = new_pixel;
+            let pixel = img.get_pixel_mut(i, j);
+            *pixel = new_pixel;
         }
     }
 }
 
-fn transform_light(contrast: i32, subpixel: u8, brightness: i32) -> u8 {
-    let mut out = contrast as i32 * subpixel as i32 + brightness as i32;
-    if out > 255 {
-        out = 255;
+fn transform_light(contrast: f32, subpixel: u8, brightness: i32) -> u8 {
+    let mut out = contrast * subpixel as f32 + brightness as f32;
+    if out > 255.0 {
+        out = 255.0;
     }
-    if out < 0 {
-        out = 0;
+    if out < 0.0 {
+        out = 0.0;
     }
     out as u8
 }
 
-pub fn contrast(img: &image::RgbImage, canvas: &mut PixelMatrix, value: i32) {
+pub fn contrast(img: &mut image::RgbImage, value: f32) {
     let (width, height) = img.dimensions();
     for i in 0..width {
         for j in 0..height {
@@ -146,12 +148,13 @@ pub fn contrast(img: &image::RgbImage, canvas: &mut PixelMatrix, value: i32) {
                 new_rgb[k] = transform_light(value, new_rgb[k], 0);
             }
             let new_pixel = image::Rgb(new_rgb);
-            canvas[i as usize][j as usize] = new_pixel;
+            let img_pixel = img.get_pixel_mut(i, j);
+            *img_pixel = new_pixel;
         }
     }
 }
 
-pub fn brightness(img: &image::RgbImage, canvas: &mut PixelMatrix, value: i32) {
+pub fn brightness(img: &mut image::RgbImage, value: i32) {
     let (width, height) = img.dimensions();
     for i in 0..width {
         for j in 0..height {
@@ -159,15 +162,16 @@ pub fn brightness(img: &image::RgbImage, canvas: &mut PixelMatrix, value: i32) {
             let image::Rgb(rgb) = *pixel;
             let mut new_rgb = [rgb[0], rgb[1], rgb[2]];
             for k in 0..3 {
-                new_rgb[k] = transform_light(1, new_rgb[k], value);
+                new_rgb[k] = transform_light(1.0, new_rgb[k], value);
             }
             let new_pixel = image::Rgb(new_rgb);
-            canvas[i as usize][j as usize] = new_pixel;
+            let img_pixel = img.get_pixel_mut(i, j);
+            *img_pixel = new_pixel;
         }
     }
 }
 
-pub fn negative(img: &image::RgbImage, canvas: &mut PixelMatrix) {
+pub fn negative(img: &mut image::RgbImage) {
     let (width, height) = img.dimensions();
     for i in 0..width {
         for j in 0..height {
@@ -178,7 +182,8 @@ pub fn negative(img: &image::RgbImage, canvas: &mut PixelMatrix) {
                 new_rgb[k] = 255 - new_rgb[k];
             }
             let new_pixel = image::Rgb(new_rgb);
-            canvas[i as usize][j as usize] = new_pixel;
+            let img_pixel = img.get_pixel_mut(i, j);
+            *img_pixel = new_pixel;
         }
     }
 }
@@ -193,7 +198,7 @@ fn sum_filter_matrix(matrix: FilterMatrix) -> i32 {
     sum
 }
 
-fn apply_filter_mask(
+fn apply_average_filter_mask(
     img: &image::RgbImage,
     filter: FilterMatrix,
     x: u32,
@@ -217,13 +222,152 @@ fn apply_filter_mask(
     [(r_sum / z) as u8, (g_sum / z) as u8, (b_sum / z) as u8]
 }
 
-pub fn average_filter(img: &image::RgbImage, canvas: &mut PixelMatrix) {
+fn find_mode(map: &HashMap<u8, u8>, original_map: &HashMap<u8, (u8, u8, u8)>) -> [u8; 3] {
+    let mut count: u8 = 0;
+    let mut gray_level_mode: u8 = 0;
+    for key in map.keys() {
+        let test = map.get(key).unwrap();
+        if test > &count {
+            count = *test;
+            gray_level_mode = *key;
+        }
+    }
+    let mode = original_map.get(&gray_level_mode).unwrap();
+    [mode.0, mode.1, mode.2]
+}
+
+fn find_median(list: &mut Vec<u8>, original_map: &HashMap<u8, (u8, u8, u8)>) -> [u8; 3] {
+    list.sort();
+    let idx = (list.len() / 2) as usize;
+    let median = original_map.get(&list[idx]).unwrap();
+    [median.0, median.1, median.2]
+}
+
+pub fn average_filter(img: &mut image::RgbImage, canvas: &mut PixelMatrix) {
     let filter: FilterMatrix = [[1, 1, 1], [1, 1, 1], [1, 1, 1]];
     let (width, height) = img.dimensions();
     let z = sum_filter_matrix(filter);
     for x in 1..(width - 1) {
         for y in 1..(height - 1) {
-            let new_rgb = apply_filter_mask(img, filter, x, y, z);
+            let new_rgb = apply_average_filter_mask(img, filter, x, y, z);
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[x as usize][y as usize] = new_pixel;
+        }
+    }
+}
+
+pub fn gaussian_filter(img: &mut image::RgbImage) {
+    let filter: FilterMatrix = [[1, 2, 1], [2, 4, 2], [1, 2, 1]];
+    let (width, height) = img.dimensions();
+    let z = sum_filter_matrix(filter);
+    for x in 1..(width - 1) {
+        for y in 1..(height - 1) {
+            let new_rgb = apply_average_filter_mask(img, filter, x, y, z);
+            let new_pixel = image::Rgb(new_rgb);
+            let pixel = img.get_pixel_mut(x, y);
+            *pixel = new_pixel;
+        }
+    }
+}
+
+pub fn mode_filter(img: &mut image::RgbImage, canvas: &mut PixelMatrix) {
+    let filter: FilterMatrix = [[1, 1, 1], [1, 1, 1], [1, 1, 1]];
+    let (width, height) = img.dimensions();
+    for x in 1..(width - 1) {
+        for y in 1..(height - 1) {
+            let mut gray_levels: HashMap<u8, u8> = HashMap::new();
+            let mut original_pixels: HashMap<u8, (u8, u8, u8)> = HashMap::new();
+            for i in 0..filter.len() {
+                for j in 0..filter[0].len() {
+                    let x_search = x as i32 + (i as i32 - 1);
+                    let y_search = y as i32 + (j as i32 - 1);
+                    let pixel = img.get_pixel(x_search as u32, y_search as u32);
+                    let image::Rgb(rgb) = *pixel;
+                    let gray_level = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
+                    let pixel_count = match gray_levels.get(&gray_level) {
+                        None => 0,
+                        Some(v) => *v,
+                    };
+                    gray_levels.insert(gray_level, pixel_count + 1);
+                    original_pixels.insert(gray_level, (rgb[0], rgb[1], rgb[2]));
+                }
+            }
+            let new_rgb = find_mode(&gray_levels, &original_pixels);
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[x as usize][y as usize] = new_pixel;
+        }
+    }
+}
+
+pub fn median_filter(img: &mut image::RgbImage) {
+    let filter: FilterMatrix = [[1, 1, 1], [1, 1, 1], [1, 1, 1]];
+    let (width, height) = img.dimensions();
+    for x in 1..(width - 1) {
+        for y in 1..(height - 1) {
+            let mut gray_levels: Vec<u8> = Vec::new();
+            let mut original_pixels: HashMap<u8, (u8, u8, u8)> = HashMap::new();
+            for i in 0..filter.len() {
+                for j in 0..filter[0].len() {
+                    let x_search = x as i32 + (i as i32 - 1);
+                    let y_search = y as i32 + (j as i32 - 1);
+                    let pixel = img.get_pixel(x_search as u32, y_search as u32);
+                    let image::Rgb(rgb) = *pixel;
+                    let gray_level = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
+                    gray_levels.push(gray_level);
+                    original_pixels.insert(gray_level, (rgb[0], rgb[1], rgb[2]));
+                }
+            }
+            let new_rgb = find_median(&mut gray_levels, &original_pixels);
+            let new_pixel = image::Rgb(new_rgb);
+            let pixel = img.get_pixel_mut(x, y);
+            *pixel = new_pixel;
+        }
+    }
+}
+
+pub fn border_detection(img: &image::RgbImage, canvas: &mut PixelMatrix, threshold: u32) {
+    let kernel: FilterMatrix = [[0, 0, 0], [0, 0, -1], [0, 1, 0]];
+    let (width, height) = img.dimensions();
+    for x in 1..(width - 1) {
+        for y in 1..(height - 1) {
+            let mut gs = [0, 0, 0];
+            for i in 0..3 {
+                for j in 0..3 {
+                    let x_search = x as i32 + (i as i32 - 1);
+                    let y_search = y as i32 + (j as i32 - 1);
+                    let pixel = img.get_pixel(x_search as u32, y_search as u32);
+                    let image::Rgb(rgb) = *pixel;
+                    gs[0] += rgb[0] as i32 * kernel[i][j];
+                    gs[1] += rgb[1] as i32 * kernel[i][j];
+                    gs[2] += rgb[2] as i32 * kernel[i][j];
+                }
+            }
+            let mut new_rgb = [0, 0, 0];
+            for k in 0..3 {
+                let g = i32::pow(gs[k], 2) + i32::pow(gs[k], 2);
+                let g_root = (g as f64).sqrt();
+                new_rgb[k] = 0;
+                if g_root as u32 > threshold {
+                    new_rgb[k] = 255;
+                }
+            }
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[x as usize][y as usize] = new_pixel;
+        }
+    }
+}
+
+pub fn threshold(img: &mut image::RgbImage, canvas: &mut PixelMatrix, threshold: u8) {
+    let (width, height) = img.dimensions();
+    for x in 0..width {
+        for y in 0..height {
+            let pixel = img.get_pixel_mut(x, y);
+            let image::Rgb(rgb) = *pixel;
+            let gray_level = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
+            let mut new_rgb = [0, 0, 0];
+            if gray_level > threshold {
+                new_rgb = [255, 255, 255];
+            }
             let new_pixel = image::Rgb(new_rgb);
             canvas[x as usize][y as usize] = new_pixel;
         }
