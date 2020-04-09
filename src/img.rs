@@ -8,6 +8,8 @@ pub type PixelMatrix = Vec<Vec<Rgb<u8>>>;
 // Tipo que representa uma matriz de posições com vetores [x, y]
 pub type PositionMatrix = [[f64; 2]; 3];
 
+pub type FilterMatrix = [[i32; 3]; 3];
+
 // Tipo que determina a direção para a funcão flip
 pub enum Direction {
     Vertical,
@@ -180,3 +182,38 @@ pub fn negative(img: &image::RgbImage, canvas: &mut PixelMatrix) {
         }
     }
 }
+
+fn sum_filter_matrix(matrix: FilterMatrix) -> i32 {
+    let mut sum = 0;
+    for i in 0..matrix.len() {
+        for j in 0..matrix[0].len() {
+            sum += matrix[i][j];
+        }
+    }
+    sum
+}
+
+fn apply_filter_mask(
+    img: &image::RgbImage,
+    filter: FilterMatrix,
+    x: u32,
+    y: u32,
+    z: i32,
+) -> [u8; 3] {
+    let mut r_sum = 0;
+    let mut g_sum = 0;
+    let mut b_sum = 0;
+    for i in 0..filter.len() {
+        for j in 0..filter[0].len() {
+            let x_search = x as i32 + (i as i32 - 1);
+            let y_search = y as i32 + (j as i32 - 1);
+            let pixel = img.get_pixel(x_search as u32, y_search as u32);
+            let image::Rgb(rgb) = *pixel;
+            r_sum += rgb[0] as i32 * filter[i][j];
+            g_sum += rgb[1] as i32 * filter[i][j];
+            b_sum += rgb[2] as i32 * filter[i][j];
+        }
+    }
+    [(r_sum / z) as u8, (g_sum / z) as u8, (b_sum / z) as u8]
+}
+
