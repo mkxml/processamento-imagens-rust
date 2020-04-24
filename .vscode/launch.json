@@ -4,6 +4,18 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Cargo launch",
+            "cargo": {
+                "args": [
+                    "build"
+                ]
+            },
+            "program": "${cargo:program}",
+            "args": []
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug",
             "program": "${workspaceRoot}/target/debug/${workspaceRootFolderName}",
             "args": [],

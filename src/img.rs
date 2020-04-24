@@ -357,17 +357,73 @@ pub fn border_detection(img: &image::RgbImage, canvas: &mut PixelMatrix, thresho
     }
 }
 
-pub fn threshold(img: &mut image::RgbImage, canvas: &mut PixelMatrix, threshold: u8) {
+pub fn threshold(img: &image::RgbImage, canvas: &mut PixelMatrix, threshold: u8) {
     let (width, height) = img.dimensions();
     for x in 0..width {
         for y in 0..height {
-            let pixel = img.get_pixel_mut(x, y);
+            let pixel = img.get_pixel(x, y);
             let image::Rgb(rgb) = *pixel;
             let gray_level = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
             let mut new_rgb = [0, 0, 0];
             if gray_level > threshold {
                 new_rgb = [255, 255, 255];
             }
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[x as usize][y as usize] = new_pixel;
+        }
+    }
+}
+
+pub fn dilation(img: &image::RgbImage, canvas: &mut PixelMatrix, mask: &FilterMatrix) {
+    let (width, height) = img.dimensions();
+    for x in 1..(width - 1) {
+        for y in 1..(height - 1) {
+            let mut value = 0 as u8;
+            for i in 0..mask.len() {
+                for j in 0..mask[0].len() {
+                    let x_search = x as i32 + (i as i32 - 1);
+                    let y_search = y as i32 + (j as i32 - 1);
+                    let pixel = img.get_pixel(x_search as u32, y_search as u32);
+                    let image::Rgb(rgb) = *pixel;
+                    let gray_level = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
+                    let mut pixel_value = gray_level as i32 + mask[i][j];
+                    if pixel_value > 255 {
+                        pixel_value = 255;
+                    }
+                    if pixel_value > value as i32 {
+                        value = pixel_value as u8;
+                    }
+                }
+            }
+            let new_rgb = [value, value, value];
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[x as usize][y as usize] = new_pixel;
+        }
+    }
+}
+
+pub fn erosion(img: &image::RgbImage, canvas: &mut PixelMatrix, mask: &FilterMatrix) {
+    let (width, height) = img.dimensions();
+    for x in 1..(width - 1) {
+        for y in 1..(height - 1) {
+            let mut value = 255 as u8;
+            for i in 0..mask.len() {
+                for j in 0..mask[0].len() {
+                    let x_search = x as i32 + (i as i32 - 1);
+                    let y_search = y as i32 + (j as i32 - 1);
+                    let pixel = img.get_pixel(x_search as u32, y_search as u32);
+                    let image::Rgb(rgb) = *pixel;
+                    let gray_level = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
+                    let mut pixel_value = gray_level as i32 - mask[i][j];
+                    if pixel_value < 0 {
+                        pixel_value = 0;
+                    }
+                    if pixel_value < value as i32 {
+                        value = pixel_value as u8;
+                    }
+                }
+            }
+            let new_rgb = [value, value, value];
             let new_pixel = image::Rgb(new_rgb);
             canvas[x as usize][y as usize] = new_pixel;
         }
