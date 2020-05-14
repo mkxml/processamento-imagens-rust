@@ -16,27 +16,11 @@ fn main() {
     // Carregando imagens de origem
     let demo = load::open_image("letras.jpg");
 
-    /* Aplicando erosão e dilatação */
+    /* Aplicando afinamento por Zhang-Suen */
     let (width, height) = demo.dimensions();
     let mut canvas = img::new_canvas(width, height);
-    let filter = [[1, 1, 1], [1, 1, 1], [1, 1, 1]];
-    img::threshold(&demo, &mut canvas, 128);
-    img::erosion(
-        &img::pixel_matrix_to_image(&canvas, width, height),
-        &mut canvas,
-        &filter,
-    );
-    img::erosion(
-        &img::pixel_matrix_to_image(&canvas, width, height),
-        &mut canvas,
-        &filter,
-    );
-    img::dilation(
-        &img::pixel_matrix_to_image(&canvas, width, height),
-        &mut canvas,
-        &filter,
-    );
-    save_as_image("Letras transformadas", &canvas, "letras_output.jpg");
+    img::thin(&demo, &mut canvas);
+    save_as_image("Letras afinadas", &canvas, "letras_output.jpg");
 }
 
 fn save_as_image(name: &str, canvas: &PixelMatrix, filename: &str) {

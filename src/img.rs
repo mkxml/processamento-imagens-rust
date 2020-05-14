@@ -6,10 +6,15 @@ use std::collections::HashMap;
 // Tipo que representa uma matriz de pixels RGB
 pub type PixelMatrix = Vec<Vec<Rgb<u8>>>;
 
+// Matriz que vai segurar valores 0 (preto) ou 1 (branco)
+pub type BinaryMatrix = Vec<Vec<u8>>;
+
 // Tipo que representa uma matriz de posições com vetores [x, y]
 pub type PositionMatrix = [[f64; 2]; 3];
 
 pub type FilterMatrix = [[i32; 3]; 3];
+
+pub type Position = (usize, usize);
 
 // Tipo que determina a direção para a funcão flip
 pub enum Direction {
@@ -423,6 +428,102 @@ pub fn erosion(img: &image::RgbImage, canvas: &mut PixelMatrix, mask: &FilterMat
                     }
                 }
             }
+            let new_rgb = [value, value, value];
+            let new_pixel = image::Rgb(new_rgb);
+            canvas[x as usize][y as usize] = new_pixel;
+        }
+    }
+}
+
+pub fn binarize(img: &image::RgbImage) -> BinaryMatrix {
+    let (width, height) = img.dimensions();
+    let mut canvas: BinaryMatrix = vec![vec![0; height as usize]; width as usize];
+    for x in 0..width {
+        for y in 0..height {
+            let pixel = img.get_pixel(x, y);
+            let image::Rgb(rgb) = *pixel;
+            let gray_level = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u8;
+            if gray_level > 127 {
+                canvas[x as usize][y as usize] = 1;
+            }
+        }
+    }
+    canvas
+}
+
+fn get_neighbors(x: usize, y: usize, img: &BinaryMatrix) -> [u8; 8] {
+    // P2, P3, P4, P5, P6, P7, P8, P9
+    [
+        img[x - 1][y],
+        img[x - 1][y + 1],
+        img[x][y + 1],
+        img[x + 1][y + 1],
+        img[x + 1][y],
+        img[x + 1][y - 1],
+        img[x][y - 1],
+        img[x - 1][y - 1],
+    ]
+}
+
+fn is_connected(neighbors: [u8; 8]) -> bool {
+    let mut sp: u8 = if neighbors[7] < neighbors[0] { 1 } else { 0 };
+    for i in 0..neighbors.len() - 1 {
+        sp += if neighbors[i] < neighbors[i + 1] {
+            1
+        } else {
+            0
+        }
+    }
+    sp == 1
+}
+
+fn is_edge(neighbors: [u8; 8]) -> bool {
+    let mut np: u8 = 0;
+    for neighbor in &neighbors {
+        np += neighbor;
+    }
+    (np >= 2 && np <= 6) && is_connected(neighbors)
+}
+
+fn should_change(binary_image: &BinaryMatrix, x: usize, y: usize, first: bool) -> bool {
+    let neighbors = get_neighbors(x, y, &binary_image);
+    let [p2, _, p4, _, p6, _, p8, _] = neighbors;
+    let comp = binary_image[x][y] == 1 && is_edge(neighbors) && is_connected(neighbors);
+    if first {
+        comp && p2 * p4 * p6 == 0 && p4 * p6 * p8 == 0
+    } else {
+        comp && p2 * p4 * p8 == 0 && p2 * p6 * p8 == 0
+    }
+}
+
+// Usando método Zhang-Suen
+pub fn thin(img: &image::RgbImage, canvas: &mut PixelMatrix) {
+    // Binariza a imagem original
+    let mut binary_image = binarize(img);
+    let mut changing = true;
+    let mut first_step = false;
+    while changing {
+        changing = false;
+        first_step = !first_step;
+        let mut pixels_to_remove: Vec<Position> = Vec::new();
+        for x in 1..binary_image.len() - 1 {
+            for y in 1..binary_image[0].len() - 1 {
+                if should_change(&binary_image, x, y, first_step) {
+                    // Marca para exclusão futura
+                    pixels_to_remove.push((x, y));
+                    changing = true;
+                }
+            }
+        }
+        // Executa as exclusões
+        for (x, y) in pixels_to_remove {
+            binary_image[x][y] = 0;
+        }
+    }
+    // Transforma matriz binária em imagem RGB
+    for x in 0..binary_image.len() {
+        for y in 0..binary_image[0].len() {
+            let value = binary_image[x as usize][y as usize] * 255;
             let new_rgb = [value, value, value];
             let new_pixel = image::Rgb(new_rgb);
             canvas[x as usize][y as usize] = new_pixel;
